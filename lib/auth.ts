@@ -1,6 +1,5 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -17,17 +16,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!username || !password) return null;
 
         const adminUsername = process.env.ADMIN_USERNAME || "admin";
-        const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+        const adminPassword = process.env.ADMIN_PASSWORD;
 
-        if (!adminPasswordHash) {
-          console.error("ADMIN_PASSWORD_HASH not set");
+        if (!adminPassword) {
+          console.error("ADMIN_PASSWORD not set in environment");
           return null;
         }
 
-        if (username !== adminUsername) return null;
-
-        const isValid = bcrypt.compareSync(password, adminPasswordHash);
-        if (!isValid) return null;
+        if (username !== adminUsername || password !== adminPassword) {
+          return null;
+        }
 
         return {
           id: "1",
