@@ -52,7 +52,14 @@ export default function DashboardPage() {
                 key={a.id}
                 className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3"
               >
-                <span className="text-xl">{a.emoji}</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={a.avatar}
+                  alt={a.realName}
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-full object-cover"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-200">
                     {a.realName}

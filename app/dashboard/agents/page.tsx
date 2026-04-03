@@ -33,11 +33,14 @@ function AgentCard({ agent, warm }: { agent: Agent; warm?: boolean }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-4">
-          <div
-            className={`flex h-14 w-14 items-center justify-center rounded-xl text-2xl ${agent.colorBg}`}
-          >
-            {agent.emoji}
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={agent.avatar}
+            alt={agent.realName}
+            width={64}
+            height={64}
+            className={`h-16 w-16 rounded-full object-cover ring-2 ${agent.colorBorder}`}
+          />
           <div>
             <h3 className="text-lg font-bold text-zinc-100">
               {agent.realName}

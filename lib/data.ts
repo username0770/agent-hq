@@ -26,6 +26,7 @@ export type Agent = {
   workStyle: string;
   tags: string[];
   status: "online" | "standby" | "always";
+  avatar: string;
   group: "team" | "personal";
 };
 
@@ -35,6 +36,7 @@ export const agents: Agent[] = [
     name: "Analyst",
     realName: "Алекс",
     emoji: "\ud83d\udd0d",
+    avatar: "/avatars/alex.png",
     role: "Data & Analytics",
     color: "text-blue-400",
     colorBg: "bg-blue-500/20",
@@ -53,6 +55,7 @@ export const agents: Agent[] = [
     name: "Copywriter",
     realName: "Мира",
     emoji: "\u270d\ufe0f",
+    avatar: "/avatars/mira.png",
     role: "Documentation",
     color: "text-purple-400",
     colorBg: "bg-purple-500/20",
@@ -71,6 +74,7 @@ export const agents: Agent[] = [
     name: "Developer",
     realName: "Макс",
     emoji: "\ud83d\udcbb",
+    avatar: "/avatars/max.png",
     role: "Engineering",
     color: "text-emerald-400",
     colorBg: "bg-emerald-500/20",
@@ -89,6 +93,7 @@ export const agents: Agent[] = [
     name: "Strategist",
     realName: "Виктор",
     emoji: "\ud83c\udfaf",
+    avatar: "/avatars/viktor.png",
     role: "Strategy & Planning",
     color: "text-orange-400",
     colorBg: "bg-orange-500/20",
@@ -108,6 +113,7 @@ export const agents: Agent[] = [
     name: "Assistant",
     realName: "Соня",
     emoji: "\ud83d\udee0\ufe0f",
+    avatar: "/avatars/sonya.png",
     role: "Operations",
     color: "text-sky-400",
     colorBg: "bg-sky-500/20",
@@ -126,6 +132,7 @@ export const agents: Agent[] = [
     name: "Life Coach",
     realName: "Ника",
     emoji: "\ud83e\udde0",
+    avatar: "/avatars/nika.png",
     role: "Personal Advisor",
     color: "text-rose-400",
     colorBg: "bg-rose-500/20",
