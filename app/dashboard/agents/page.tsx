@@ -1,36 +1,128 @@
-import { agents } from "@/lib/data";
+import { agents, type Agent } from "@/lib/data";
+
+function StatusDot({ status }: { status: Agent["status"] }) {
+  const colors = {
+    online: "bg-emerald-400",
+    standby: "bg-zinc-500",
+    always: "bg-rose-400",
+  };
+  const labels = {
+    online: "online",
+    standby: "standby",
+    always: "always available",
+  };
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={`h-2 w-2 rounded-full ${colors[status]} animate-pulse`} />
+      <span className="text-[10px] font-medium text-zinc-500 uppercase">
+        {labels[status]}
+      </span>
+    </span>
+  );
+}
+
+function AgentCard({ agent, warm }: { agent: Agent; warm?: boolean }) {
+  return (
+    <div
+      className={`rounded-2xl border p-6 transition-all hover:scale-[1.01] ${
+        warm
+          ? `${agent.colorBorder} bg-gradient-to-br from-rose-950/40 to-zinc-900`
+          : `${agent.colorBorder} bg-zinc-900`
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <div
+            className={`flex h-14 w-14 items-center justify-center rounded-xl text-2xl ${agent.colorBg}`}
+          >
+            {agent.emoji}
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-zinc-100">
+              {agent.realName}
+            </h3>
+            <p className={`text-sm font-medium ${agent.color}`}>{agent.role}</p>
+          </div>
+        </div>
+        <StatusDot status={agent.status} />
+      </div>
+
+      {/* Motto */}
+      <p className="mb-5 text-sm italic text-zinc-500 leading-relaxed">
+        &ldquo;{agent.motto}&rdquo;
+      </p>
+
+      {/* Specialization */}
+      <div className="mb-4">
+        <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+          Специализация
+        </h4>
+        <p className="text-sm leading-relaxed text-zinc-300">
+          {agent.specialization}
+        </p>
+      </div>
+
+      {/* Work style */}
+      <div className="mb-4">
+        <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+          Стиль работы
+        </h4>
+        <p className="text-sm leading-relaxed text-zinc-400">
+          {agent.workStyle}
+        </p>
+      </div>
+
+      {/* Tags */}
+      <div className="flex flex-wrap gap-2">
+        {agent.tags.map((tag) => (
+          <span
+            key={tag}
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${agent.colorBg} ${agent.color} ${agent.colorBorder}`}
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function AgentsPage() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Agent Team</h1>
+  const teamAgents = agents.filter((a) => a.group === "team");
+  const personalAgents = agents.filter((a) => a.group === "personal");
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {agents.map((agent) => (
-          <div
-            key={agent.id}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 p-5"
-          >
-            <div className="mb-3 flex items-center gap-3">
-              <span className="text-3xl">{agent.emoji}</span>
-              <div>
-                <h3 className="font-semibold text-zinc-100">{agent.name}</h3>
-                <p className="text-xs text-zinc-500">{agent.role}</p>
-              </div>
-              <span
-                className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  agent.status === "active"
-                    ? "bg-emerald-900/50 text-emerald-400"
-                    : "bg-zinc-800 text-zinc-500"
-                }`}
-              >
-                {agent.status}
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed text-zinc-400">
-              {agent.description}
-            </p>
-          </div>
+  return (
+    <div className="space-y-10">
+      {/* Team section */}
+      <div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Agent Team</h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Команда проекта — {teamAgents.length} агентов
+          </p>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {teamAgents.map((agent) => (
+            <AgentCard key={agent.id} agent={agent} />
+          ))}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-4">
+        <div className="h-px flex-1 bg-zinc-800" />
+        <span className="text-xs font-medium text-zinc-600 uppercase tracking-widest">
+          Личный советник
+        </span>
+        <div className="h-px flex-1 bg-zinc-800" />
+      </div>
+
+      {/* Personal section */}
+      <div className="max-w-2xl mx-auto">
+        {personalAgents.map((agent) => (
+          <AgentCard key={agent.id} agent={agent} warm />
         ))}
       </div>
     </div>

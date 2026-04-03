@@ -47,7 +47,7 @@ export default function DashboardPage() {
             Team
           </h2>
           <div className="space-y-2">
-            {agents.map((a) => (
+            {agents.filter(a => a.group === "team").map((a) => (
               <div
                 key={a.id}
                 className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3"
@@ -55,13 +55,13 @@ export default function DashboardPage() {
                 <span className="text-xl">{a.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-200">
-                    {a.name}
+                    {a.realName}
                   </p>
                   <p className="text-xs text-zinc-500 truncate">{a.role}</p>
                 </div>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                    a.status === "active"
+                    a.status === "online"
                       ? "bg-emerald-900/50 text-emerald-400"
                       : "bg-zinc-800 text-zinc-500"
                   }`}
