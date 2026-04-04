@@ -62,6 +62,13 @@ interface LivePanelProps {
 
 export default function LivePanel({ session, manualTarget, onSetManualTarget, onBetUpdate }: LivePanelProps) {
   const [inputValue, setInputValue] = useState("");
+  const [now, setNow] = useState(Date.now());
+
+  // Tick every second for real-time recalculation
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
 
   if (!session) {
     return (
@@ -82,9 +89,11 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
   const upPrice = lastTick?.pmUpPrice || 0.5;
   const downPrice = 1 - upPrice;
 
-  // Fair value
+  // Calculate secondsLeft from endDate in real-time (not from stale tick)
+  const secondsLeft = Math.max(0, Math.floor((new Date(session.endDate).getTime() - now) / 1000));
+
+  // Fair value — recalculated every second
   const ref = lastTick?.chainlink || lastTick?.cexMedian || lastTick?.binance || 0;
-  const secondsLeft = lastTick?.secondsLeft || 0;
   const fv = effectiveTarget && ref ? fairProbability(ref, effectiveTarget, secondsLeft) : null;
 
   // Fees
