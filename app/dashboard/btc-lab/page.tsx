@@ -21,6 +21,8 @@ interface BetSettings {
   betAmount: number;
   maxBetsPerWindow: number;
   cooldown: number;
+  priceMin: number;
+  priceMax: number;
 }
 
 interface ControlState {
@@ -404,11 +406,53 @@ function SettingsPanel({
             className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
           />
         </div>
+
+        {/* Price Min */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">
+            Min market price to buy
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range" min={0.01} max={0.99} step={0.01}
+              value={s.priceMin}
+              onChange={(e) => setS({ ...s, priceMin: parseFloat(e.target.value) })}
+              className="flex-1 accent-yellow-500"
+            />
+            <span className="text-sm font-mono font-bold text-yellow-400 w-12 text-right">
+              {(s.priceMin * 100).toFixed(0)}c
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-600 mt-1">
+            Только рынки с ценой {(s.priceMin * 100).toFixed(0)}%+ ({(s.priceMin * 100).toFixed(0)}c+)
+          </p>
+        </div>
+
+        {/* Price Max */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">
+            Max market price to buy
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range" min={0.01} max={0.99} step={0.01}
+              value={s.priceMax}
+              onChange={(e) => setS({ ...s, priceMax: parseFloat(e.target.value) })}
+              className="flex-1 accent-yellow-500"
+            />
+            <span className="text-sm font-mono font-bold text-yellow-400 w-12 text-right">
+              {(s.priceMax * 100).toFixed(0)}c
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-600 mt-1">
+            Не покупать дороже {(s.priceMax * 100).toFixed(0)}c
+          </p>
+        </div>
       </div>
 
       {/* Preview */}
       <div className="mt-4 rounded-lg bg-zinc-950 p-3 text-xs text-zinc-400">
-        Ставим ${s.betAmount} когда edge &gt; {s.minEdge}% | таймер от {timerMaxLabel} до {timerMinLabel} | макс {s.maxBetsPerWindow} ставок | пауза {s.cooldown}с
+        ${s.betAmount} при edge &gt; {s.minEdge}% | таймер {timerMaxLabel}–{timerMinLabel} | цена {(s.priceMin*100).toFixed(0)}c–{(s.priceMax*100).toFixed(0)}c | макс {s.maxBetsPerWindow} ставок | пауза {s.cooldown}с
       </div>
 
       <div className="mt-4 flex gap-2">

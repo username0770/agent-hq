@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
   betAmount: 100,       // $ per bet
   maxBetsPerWindow: 5,  // max bets per 5min window
   cooldown: 30,         // seconds between bets
+  priceMin: 0.01,       // min market price to buy (0.85 = only 85%+ markets)
+  priceMax: 0.99,       // max market price to buy
 };
 
 export async function GET(req: NextRequest) {
