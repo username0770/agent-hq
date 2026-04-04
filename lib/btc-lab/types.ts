@@ -6,10 +6,19 @@ export interface Strategy {
   description: string;
   color: string;
   isActive: boolean;
-  minEdge: number;
-  betAmountUSDC: number;
-  autobet: boolean;
+  // Betting params
+  minEdge: number;           // min edge % after fee
+  betAmountUSDC: number;     // $ per bet
+  autobet: boolean;          // auto-place bets
   autobetPhase: "early" | "mid" | "late" | "all";
+  timerMin: number;          // don't bet below this seconds left
+  timerMax: number;          // don't bet above this seconds left
+  priceMin: number;          // min market price (0.01-0.99)
+  priceMax: number;          // max market price
+  mirror: boolean;           // contrarian — flip bet side
+  fairMin: number;           // bet when fair >= this (0 = use edge)
+  cooldown: number;          // seconds between bets
+  maxBetsPerWindow: number;  // max bets per 5min window
   createdAt: string;
   updatedAt: string;
   totalBets: number;

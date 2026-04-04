@@ -28,7 +28,9 @@ export async function PATCH(
   if (!raw) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const strat = typeof raw === "string" ? JSON.parse(raw) : raw;
   const allowed = ["name", "description", "color", "isActive",
-                    "minEdge", "betAmountUSDC", "autobet", "autobetPhase"];
+                    "minEdge", "betAmountUSDC", "autobet", "autobetPhase",
+                    "timerMin", "timerMax", "priceMin", "priceMax",
+                    "mirror", "fairMin", "cooldown", "maxBetsPerWindow"];
   for (const k of allowed) {
     if (body[k] !== undefined) strat[k] = body[k];
   }
