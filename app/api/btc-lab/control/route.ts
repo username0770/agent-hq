@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis, checkAuth } from "@/lib/kv";
 
-// Control state stored in Redis:
-// btc-lab:control → { running: bool, manualTarget: number|null, startedAt, stoppedAt }
+// Control state in Redis:
+// btc-lab:control → { running, manualTarget, settings, startedAt, stoppedAt }
+
+const DEFAULT_SETTINGS = {
+  minEdge: 7,           // minimum edge % after fee to place bet
+  timerMin: 0,          // earliest seconds left (0 = can bet until end)
+  timerMax: 300,        // latest seconds left (300 = can bet from start)
+  betAmount: 100,       // $ per bet
+  maxBetsPerWindow: 5,  // max bets per 5min window
+  cooldown: 30,         // seconds between bets
+};
 
 export async function GET(req: NextRequest) {
   const denied = await checkAuth(req);
@@ -13,7 +22,10 @@ export async function GET(req: NextRequest) {
     const raw = await r.get("btc-lab:control");
     const state = raw
       ? typeof raw === "string" ? JSON.parse(raw) : raw
-      : { running: false, manualTarget: null, startedAt: null, stoppedAt: null };
+      : { running: false, manualTarget: null, settings: DEFAULT_SETTINGS,
+          startedAt: null, stoppedAt: null };
+    // Ensure settings always has defaults
+    state.settings = { ...DEFAULT_SETTINGS, ...state.settings };
     return NextResponse.json(state);
   } catch (e: unknown) {
     return NextResponse.json(
@@ -34,7 +46,9 @@ export async function POST(req: NextRequest) {
     const raw = await r.get("btc-lab:control");
     const state = raw
       ? typeof raw === "string" ? JSON.parse(raw) : raw
-      : { running: false, manualTarget: null, startedAt: null, stoppedAt: null };
+      : { running: false, manualTarget: null, settings: DEFAULT_SETTINGS,
+          startedAt: null, stoppedAt: null };
+    state.settings = { ...DEFAULT_SETTINGS, ...state.settings };
 
     if (body.action === "start") {
       state.running = true;
@@ -46,7 +60,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.manualTarget !== undefined) {
-      state.manualTarget = body.manualTarget; // number or null to clear
+      state.manualTarget = body.manualTarget;
+    }
+
+    if (body.settings) {
+      state.settings = { ...state.settings, ...body.settings };
     }
 
     await r.set("btc-lab:control", JSON.stringify(state));

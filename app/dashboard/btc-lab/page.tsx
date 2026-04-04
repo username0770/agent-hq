@@ -14,15 +14,26 @@ const SessionChart = dynamic(
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+interface BetSettings {
+  minEdge: number;
+  timerMin: number;
+  timerMax: number;
+  betAmount: number;
+  maxBetsPerWindow: number;
+  cooldown: number;
+}
+
 interface ControlState {
   running: boolean;
   manualTarget: number | null;
+  settings: BetSettings;
   startedAt: string | null;
   stoppedAt: string | null;
 }
 
 export default function BtcLabPage() {
   const [chartCount, setChartCount] = useState(10);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Control state
   const { data: control } = useSWR<ControlState>(
@@ -138,20 +149,30 @@ export default function BtcLabPage() {
           )}
           {/* Control buttons */}
           <div className="flex gap-2 ml-2">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`rounded-lg border px-3 py-2 text-sm ${
+                showSettings
+                  ? "border-yellow-600 text-yellow-400 bg-yellow-900/20"
+                  : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Settings
+            </button>
             {control?.running ? (
               <button
                 onClick={() => sendControl({ action: "stop" })}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 flex items-center gap-1.5"
               >
                 <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                Stop Script
+                Stop
               </button>
             ) : (
               <button
                 onClick={() => sendControl({ action: "start" })}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
               >
-                Start Script
+                Start
               </button>
             )}
           </div>
@@ -179,6 +200,17 @@ export default function BtcLabPage() {
             </span>
           )}
         </div>
+      )}
+
+      {/* Settings Panel */}
+      {showSettings && control?.settings && (
+        <SettingsPanel
+          settings={control.settings}
+          onSave={(s) => {
+            sendControl({ settings: s });
+            setShowSettings(false);
+          }}
+        />
       )}
 
       {/* LIVE Panel */}
@@ -256,6 +288,137 @@ function StatBadge({
         {value}
       </div>
       <div className="text-[10px] text-zinc-500">{label}</div>
+    </div>
+  );
+}
+
+function SettingsPanel({
+  settings,
+  onSave,
+}: {
+  settings: BetSettings;
+  onSave: (s: BetSettings) => void;
+}) {
+  const [s, setS] = useState({ ...settings });
+
+  const timerMinLabel = `${Math.floor(s.timerMin / 60)}:${String(s.timerMin % 60).padStart(2, "0")}`;
+  const timerMaxLabel = `${Math.floor(s.timerMax / 60)}:${String(s.timerMax % 60).padStart(2, "0")}`;
+
+  return (
+    <div className="rounded-xl border border-yellow-800/50 bg-zinc-900 p-5">
+      <h3 className="text-sm font-bold text-zinc-200 mb-4">Betting Settings</h3>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+        {/* Min Edge */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">
+            Min Edge after fee (%)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range" min={1} max={30} step={0.5}
+              value={s.minEdge}
+              onChange={(e) => setS({ ...s, minEdge: parseFloat(e.target.value) })}
+              className="flex-1 accent-yellow-500"
+            />
+            <span className="text-sm font-mono font-bold text-yellow-400 w-12 text-right">
+              {s.minEdge}%
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-600 mt-1">
+            Ставка только когда edge &gt; {s.minEdge}% после комиссии
+          </p>
+        </div>
+
+        {/* Timer range: min (latest bet) */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">
+            Timer: earliest bet (seconds left)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range" min={0} max={300} step={5}
+              value={s.timerMin}
+              onChange={(e) => setS({ ...s, timerMin: parseInt(e.target.value) })}
+              className="flex-1 accent-yellow-500"
+            />
+            <span className="text-sm font-mono font-bold text-zinc-300 w-12 text-right">
+              {timerMinLabel}
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-600 mt-1">
+            Не ставить когда осталось меньше {s.timerMin}с
+          </p>
+        </div>
+
+        {/* Timer range: max (earliest bet) */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">
+            Timer: latest bet (seconds left)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range" min={0} max={300} step={5}
+              value={s.timerMax}
+              onChange={(e) => setS({ ...s, timerMax: parseInt(e.target.value) })}
+              className="flex-1 accent-yellow-500"
+            />
+            <span className="text-sm font-mono font-bold text-zinc-300 w-12 text-right">
+              {timerMaxLabel}
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-600 mt-1">
+            Не ставить когда осталось больше {s.timerMax}с
+          </p>
+        </div>
+
+        {/* Bet amount */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">Bet amount ($)</label>
+          <input
+            type="number" min={1} max={1000} step={10}
+            value={s.betAmount}
+            onChange={(e) => setS({ ...s, betAmount: parseInt(e.target.value) || 100 })}
+            className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Max bets per window */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">Max bets per window</label>
+          <input
+            type="number" min={1} max={20} step={1}
+            value={s.maxBetsPerWindow}
+            onChange={(e) => setS({ ...s, maxBetsPerWindow: parseInt(e.target.value) || 5 })}
+            className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Cooldown */}
+        <div>
+          <label className="block text-xs text-zinc-500 mb-1">Cooldown between bets (sec)</label>
+          <input
+            type="number" min={5} max={120} step={5}
+            value={s.cooldown}
+            onChange={(e) => setS({ ...s, cooldown: parseInt(e.target.value) || 30 })}
+            className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div className="mt-4 rounded-lg bg-zinc-950 p-3 text-xs text-zinc-400">
+        Ставим ${s.betAmount} когда edge &gt; {s.minEdge}% | таймер от {timerMaxLabel} до {timerMinLabel} | макс {s.maxBetsPerWindow} ставок | пауза {s.cooldown}с
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={() => onSave(s)}
+          className="rounded-lg bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-500"
+        >
+          Save Settings
+        </button>
+      </div>
     </div>
   );
 }
