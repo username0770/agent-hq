@@ -3,7 +3,20 @@
 import { useState } from "react";
 import useSWR, { mutate, useSWRConfig } from "swr";
 import dynamic from "next/dynamic";
-import type { SessionMeta, Session, AggregateStats } from "@/lib/btc-lab-types";
+import type { SessionMeta, Session } from "@/lib/btc-lab-types";
+
+interface StrategyStats {
+  id: string; name: string; bets: number; wins: number;
+  losses: number; pending: number; winRate: number;
+  pnl: number; avgEdge: number;
+}
+
+interface SummaryData {
+  totalSessions: number; totalBets: number; wins: number;
+  losses: number; pending: number; winRate: number;
+  totalPnl: number; avgEdge: number;
+  strategies: StrategyStats[];
+}
 import LivePanel from "@/components/btc-lab/LivePanel";
 import SessionHistory from "@/components/btc-lab/SessionHistory";
 
@@ -82,7 +95,7 @@ export default function BtcLabPage() {
   );
 
   // Summary
-  const { data: stats } = useSWR<AggregateStats>(
+  const { data: stats } = useSWR<SummaryData>(
     "/api/btc-lab/summary",
     fetcher,
     { refreshInterval: 10000 }
@@ -204,6 +217,38 @@ export default function BtcLabPage() {
               Manual target: ${control.manualTarget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Strategy Balances */}
+      {stats?.strategies && stats.strategies.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {stats.strategies.map((s) => (
+            <div
+              key={s.id}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-purple-400">
+                  {s.name}
+                </span>
+                <span className={`text-sm font-bold ${
+                  s.pnl >= 0 ? "text-emerald-400" : "text-red-400"
+                }`}>
+                  {s.pnl >= 0 ? "+" : ""}${s.pnl.toFixed(0)}
+                </span>
+              </div>
+              <div className="flex gap-3 text-xs text-zinc-500">
+                <span>{s.bets} bets</span>
+                <span className="text-emerald-500">{s.wins}W</span>
+                <span className="text-red-500">{s.losses}L</span>
+                {s.pending > 0 && <span>{s.pending} pending</span>}
+                <span className={s.winRate >= 50 ? "text-emerald-400" : "text-red-400"}>
+                  {s.winRate}%
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
