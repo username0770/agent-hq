@@ -4,15 +4,16 @@ import type { SessionMeta } from "@/lib/btc-lab-types";
 import { calcPnl } from "@/lib/btc-lab-types";
 
 export async function GET(req: NextRequest) {
-  const denied = await checkAuth(req);
-  if (denied) return denied;
+  try {
+    const denied = await checkAuth(req);
+    if (denied) return denied;
 
-  const r = getRedis();
-  const ids: string[] = await r.smembers("btc-lab:sessions") || [];
+    const r = getRedis();
+    const ids: string[] = await r.smembers("btc-lab:sessions") || [];
 
-  if (ids.length === 0) {
-    return NextResponse.json([]);
-  }
+    if (ids.length === 0) {
+      return NextResponse.json([]);
+    }
 
   const pipeline = r.pipeline();
   for (const id of ids) {
@@ -24,6 +25,11 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => (b!.createdAt > a!.createdAt ? 1 : -1));
 
   return NextResponse.json(sessions);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("GET /api/btc-lab/sessions error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

@@ -1,6 +1,5 @@
 import { Redis } from "@upstash/redis";
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 
 let redis: Redis | null = null;
 
@@ -9,7 +8,10 @@ export function getRedis(): Redis {
     const url = process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.UPSTASH_REDIS_REST_TOKEN;
     if (!url || !token) {
-      throw new Error("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN required");
+      throw new Error(
+        "UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN required. " +
+        `Got URL=${url ? "set" : "missing"}, TOKEN=${token ? "set" : "missing"}`
+      );
     }
     redis = new Redis({ url, token });
   }
@@ -33,9 +35,14 @@ export async function checkAuth(
   }
 
   // 2. Check NextAuth session cookie
-  const session = await auth();
-  if (session?.user) {
-    return null; // authorized
+  try {
+    const { auth } = await import("@/lib/auth");
+    const session = await auth();
+    if (session?.user) {
+      return null; // authorized
+    }
+  } catch {
+    // auth() may fail in some contexts, fall through to 401
   }
 
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
