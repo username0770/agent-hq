@@ -40,12 +40,14 @@ interface LivePanelProps {
   session: Session | null;
   manualTarget: number | null;
   onSetManualTarget: (price: number | null) => void;
+  onBetUpdate?: () => void;
 }
 
 export default function LivePanel({
   session,
   manualTarget,
   onSetManualTarget,
+  onBetUpdate,
 }: LivePanelProps) {
   const [inputValue, setInputValue] = useState("");
 
@@ -202,7 +204,7 @@ export default function LivePanel({
           </h4>
           <div className="space-y-2">
             {session.bets.map((bet) => (
-              <BetCard key={bet.id} bet={bet} />
+              <BetCard key={bet.id} bet={bet} sessionId={session.id} onUpdate={onBetUpdate} />
             ))}
           </div>
         </div>

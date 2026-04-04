@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import useSWR, { mutate } from "swr";
+import useSWR, { mutate, useSWRConfig } from "swr";
 import dynamic from "next/dynamic";
 import type { SessionMeta, Session, AggregateStats } from "@/lib/btc-lab-types";
 import LivePanel from "@/components/btc-lab/LivePanel";
@@ -182,6 +182,10 @@ export default function BtcLabPage() {
           session={isLive ? latestSession! : null}
           manualTarget={control?.manualTarget ?? null}
           onSetManualTarget={handleSetManualTarget}
+          onBetUpdate={() => {
+            mutate(`/api/btc-lab/sessions/${latestId}`);
+            mutate("/api/btc-lab/summary");
+          }}
         />
       </section>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import type { SessionMeta, Session } from "@/lib/btc-lab-types";
 import BetCard from "./BetCard";
 
@@ -84,7 +84,7 @@ function SessionCard({ meta }: { meta: SessionMeta }) {
           {full.bets && full.bets.length > 0 && (
             <div className="space-y-1">
               {full.bets.map((bet) => (
-                <BetCard key={bet.id} bet={bet} />
+                <BetCard key={bet.id} bet={bet} sessionId={meta.id} onUpdate={() => mutate(`/api/btc-lab/sessions/${meta.id}`)} />
               ))}
             </div>
           )}
