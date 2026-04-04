@@ -32,6 +32,7 @@ interface Strategy {
   name: string;
   enabled: boolean;
   mirror: boolean;
+  fairMin: number;
   minEdge: number;
   timerMin: number;
   timerMax: number;
@@ -45,6 +46,7 @@ interface Strategy {
 interface ControlState {
   running: boolean;
   manualTarget: number | null;
+  targetMode: "auto" | "manual";
   strategies: Strategy[];
   startedAt: string | null;
   stoppedAt: string | null;
@@ -119,7 +121,10 @@ export default function BtcLabPage() {
   }
 
   async function handleSetManualTarget(price: number | null) {
-    await sendControl({ manualTarget: price });
+    await sendControl({
+      manualTarget: price,
+      targetMode: price !== null ? "manual" : "auto",
+    });
     if (latestId) {
       try {
         await fetch(`/api/btc-lab/sessions/${latestId}`, {
@@ -422,11 +427,29 @@ function StrategiesPanel({
                       {s.mirror ? "ON — bet opposite" : "OFF — bet normal"}
                     </button>
                   </div>
+                  {/* Fair Min (Sure Thing mode) */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">
+                      Fair min {s.fairMin ? `${(s.fairMin*100).toFixed(0)}%` : "off"}
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input type="range" min={0} max={1} step={0.01} value={s.fairMin || 0}
+                        onChange={(e) => update(i, { fairMin: parseFloat(e.target.value) })}
+                        className="flex-1 accent-yellow-500" />
+                      <span className="text-xs font-mono w-10 text-right">
+                        {s.fairMin ? `${(s.fairMin*100).toFixed(0)}%` : "off"}
+                      </span>
+                    </div>
+                    <p className="text-[9px] text-zinc-600">
+                      {s.fairMin && s.fairMin > 0 ? "Bet when fair >= this (ignores edge)" : "Disabled — use edge"}
+                    </p>
+                  </div>
+
                   {/* Edge */}
                   <div>
                     <label className="block text-[10px] text-zinc-500 mb-1">Min Edge %</label>
                     <div className="flex items-center gap-1">
-                      <input type="range" min={1} max={30} step={0.5} value={s.minEdge}
+                      <input type="range" min={0} max={30} step={0.5} value={s.minEdge}
                         onChange={(e) => update(i, { minEdge: parseFloat(e.target.value) })}
                         className="flex-1 accent-yellow-500" />
                       <span className="text-xs font-mono w-8 text-right text-yellow-400">{s.minEdge}</span>

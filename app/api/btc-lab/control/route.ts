@@ -54,6 +54,17 @@ const DEFAULT_STRATEGIES = [
     mirror: false,
     minEdge: 7,
   },
+  {
+    ...DEFAULT_STRATEGY,
+    id: "surething",
+    name: "Sure Thing",
+    enabled: false,
+    mirror: false,
+    minEdge: 0,
+    betAmount: 50,
+    maxBetsPerWindow: 3,
+    fairMin: 0.99,
+  },
 ];
 
 export async function GET(req: NextRequest) {
@@ -111,6 +122,9 @@ export async function POST(req: NextRequest) {
 
     if (body.manualTarget !== undefined) {
       state.manualTarget = body.manualTarget;
+    }
+    if (body.targetMode !== undefined) {
+      state.targetMode = body.targetMode;
     }
 
     if (body.strategies) {

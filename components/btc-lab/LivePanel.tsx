@@ -149,11 +149,25 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
           <div className="rounded-lg bg-zinc-950 p-3">
             <div className="flex items-center justify-between mb-1">
               <div className="text-xs text-zinc-500">Target Price</div>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                isManual ? "bg-yellow-900/50 text-yellow-400" : "bg-zinc-800 text-zinc-500"
-              }`}>
-                {isManual ? "manual" : session.targetSource || "auto"}
-              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => { if (isManual) onSetManualTarget(null); }}
+                  className={`text-[9px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                    !isManual
+                      ? "bg-emerald-900/50 text-emerald-400 ring-1 ring-emerald-500/50"
+                      : "bg-zinc-800 text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  auto
+                </button>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                  isManual
+                    ? "bg-yellow-900/50 text-yellow-400 ring-1 ring-yellow-500/50"
+                    : "bg-zinc-800 text-zinc-600"
+                }`}>
+                  manual
+                </span>
+              </div>
             </div>
             <div className="text-lg font-bold text-cyan-400">
               {effectiveTarget ? `$${effectiveTarget.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "not set"}
