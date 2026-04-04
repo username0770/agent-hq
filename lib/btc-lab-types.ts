@@ -26,11 +26,13 @@ export interface PaperBet {
   price: number;
   cexMedianAtBet: number;
   targetPrice: number;
+  targetSource: "auto" | "manual";
   moveAtBet: number;
   fairProbability: number;
   edge: number;
   fee: number;
   secondsLeftAtBet: number;
+  timerAtBet: string; // "03:42" format for display
   placedAt: string;
   outcome: "WIN" | "LOSS" | "PENDING";
   pnl: number | null;
@@ -43,6 +45,7 @@ export interface SessionMeta {
   eventStartTime: string;
   endDate: string;
   targetPrice: number | null;
+  targetSource: "auto" | "manual";
   resolvedOutcome: "UP" | "DOWN" | null;
   createdAt: string;
   completedAt: string | null;

@@ -11,8 +11,7 @@ function Timer({ endDate }: { endDate: string }) {
   useEffect(() => {
     function calc() {
       const end = new Date(endDate).getTime();
-      const now = Date.now();
-      setLeft(Math.max(0, Math.floor((end - now) / 1000)));
+      setLeft(Math.max(0, Math.floor((end - Date.now()) / 1000)));
     }
     calc();
     const iv = setInterval(calc, 1000);
@@ -37,7 +36,19 @@ function Timer({ endDate }: { endDate: string }) {
   );
 }
 
-export default function LivePanel({ session }: { session: Session | null }) {
+interface LivePanelProps {
+  session: Session | null;
+  manualTarget: number | null;
+  onSetManualTarget: (price: number | null) => void;
+}
+
+export default function LivePanel({
+  session,
+  manualTarget,
+  onSetManualTarget,
+}: LivePanelProps) {
+  const [inputValue, setInputValue] = useState("");
+
   if (!session) {
     return (
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-center text-zinc-500">
@@ -52,12 +63,22 @@ export default function LivePanel({ session }: { session: Session | null }) {
   const asks = lastOb?.asks || [];
   const spread = lastOb?.spread || 0;
 
-  const move = lastTick && session.targetPrice
-    ? lastTick.cexMedian! - session.targetPrice
+  const effectiveTarget = manualTarget ?? session.targetPrice;
+  const isManual = manualTarget !== null;
+  const move = lastTick && effectiveTarget
+    ? lastTick.cexMedian! - effectiveTarget
     : null;
-  const movePct = move && session.targetPrice
-    ? (move / session.targetPrice) * 100
+  const movePct = move && effectiveTarget
+    ? (move / effectiveTarget) * 100
     : null;
+
+  function handleSetTarget() {
+    const val = parseFloat(inputValue);
+    if (!isNaN(val) && val > 0) {
+      onSetManualTarget(val);
+      setInputValue("");
+    }
+  }
 
   return (
     <div className="rounded-xl border border-yellow-800/50 bg-zinc-900 p-5">
@@ -74,17 +95,48 @@ export default function LivePanel({ session }: { session: Session | null }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Prices */}
         <div className="space-y-3">
-          {/* Target */}
-          {session.targetPrice && (
-            <div className="rounded-lg bg-zinc-950 p-3">
-              <div className="text-xs text-zinc-500 mb-1">Target Price</div>
-              <div className="text-lg font-bold text-cyan-400">
-                ${session.targetPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </div>
+          {/* Target Price with manual override */}
+          <div className="rounded-lg bg-zinc-950 p-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs text-zinc-500">Target Price</div>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                isManual
+                  ? "bg-yellow-900/50 text-yellow-400"
+                  : "bg-zinc-800 text-zinc-500"
+              }`}>
+                {isManual ? "manual" : session.targetSource || "auto"}
+              </span>
             </div>
-          )}
+            <div className="text-lg font-bold text-cyan-400">
+              {effectiveTarget
+                ? `$${effectiveTarget.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                : "not set"}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSetTarget()}
+                placeholder="Override target..."
+                className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:border-yellow-500 focus:outline-none"
+              />
+              <button
+                onClick={handleSetTarget}
+                className="rounded bg-yellow-600 px-2 py-1 text-xs font-medium text-white hover:bg-yellow-500"
+              >
+                Set
+              </button>
+              {isManual && (
+                <button
+                  onClick={() => onSetManualTarget(null)}
+                  className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* Current prices */}
           {lastTick && (

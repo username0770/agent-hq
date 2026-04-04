@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const body = await req.json();
-  const { id, question, eventStartTime, endDate, targetPrice } = body;
+  const { id, question, eventStartTime, endDate, targetPrice, targetSource } = body;
 
   if (!id) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
     eventStartTime: eventStartTime || "",
     endDate: endDate || "",
     targetPrice: targetPrice ?? null,
+    targetSource: targetSource || "auto",
     resolvedOutcome: null,
     createdAt: new Date().toISOString(),
     completedAt: null,

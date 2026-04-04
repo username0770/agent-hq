@@ -38,11 +38,16 @@ export async function POST(
     price: body.price || 0.5,
     cexMedianAtBet: body.cexMedianAtBet || 0,
     targetPrice: body.targetPrice || 0,
+    targetSource: body.targetSource || "auto",
     moveAtBet: body.moveAtBet || 0,
     fairProbability: body.fairProbability || 0.5,
     edge: body.edge || 0,
     fee: Math.round(fee * 100) / 100,
     secondsLeftAtBet: body.secondsLeftAtBet || 0,
+    timerAtBet: body.timerAtBet || (() => {
+      const s = body.secondsLeftAtBet || 0;
+      return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+    })(),
     placedAt: new Date().toISOString(),
     outcome: "PENDING",
     pnl: null,

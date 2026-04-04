@@ -27,16 +27,24 @@ export default function BetCard({ bet }: { bet: PaperBet }) {
           <span className="text-zinc-300">
             ${bet.amount} @ {(bet.price * 100).toFixed(0)}c
           </span>
+          <span className={`text-[9px] px-1 py-0.5 rounded ${
+            bet.targetSource === "manual"
+              ? "bg-yellow-900/50 text-yellow-400"
+              : "bg-zinc-800 text-zinc-500"
+          }`}>
+            {bet.targetSource === "manual" ? "manual target" : "auto"}
+          </span>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge}`}>
           {bet.outcome}
         </span>
       </div>
 
-      <div className="flex gap-4 text-xs text-zinc-500">
+      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-zinc-500">
         <span>Edge: {(bet.edge * 100).toFixed(1)}%</span>
         <span>Fair: {(bet.fairProbability * 100).toFixed(0)}%</span>
         <span>Fee: ${bet.fee.toFixed(2)}</span>
+        <span>Timer: {bet.timerAtBet || `${bet.secondsLeftAtBet}s`}</span>
         <span>{bet.secondsLeftAtBet}s left</span>
       </div>
 
