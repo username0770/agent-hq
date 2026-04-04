@@ -46,6 +46,14 @@ const DEFAULT_STRATEGIES = [
     maxBetsPerWindow: 3,
     priceMin: 0.75,
   },
+  {
+    ...DEFAULT_STRATEGY,
+    id: "custom",
+    name: "Custom",
+    enabled: false,
+    mirror: false,
+    minEdge: 7,
+  },
 ];
 
 export async function GET(req: NextRequest) {
