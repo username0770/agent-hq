@@ -75,25 +75,36 @@ export default function BtcLabPage() {
   const isLive = latestSession && !latestSession.completedAt;
 
   async function sendControl(body: Record<string, unknown>) {
-    await fetch("/api/btc-lab/control", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch("/api/btc-lab/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) console.error("control:", await res.text());
+    } catch (e) {
+      console.error("control error:", e);
+    }
     mutate("/api/btc-lab/control");
   }
 
   async function handleSetManualTarget(price: number | null) {
     await sendControl({ manualTarget: price });
-    // Also update current session meta if exists
-    if (latestId && price !== null) {
-      await fetch(`/api/btc-lab/sessions/${latestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          meta: { targetPrice: price, targetSource: "manual" },
-        }),
-      });
+    if (latestId) {
+      try {
+        await fetch(`/api/btc-lab/sessions/${latestId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meta: {
+              targetPrice: price ?? undefined,
+              targetSource: price !== null ? "manual" : "auto",
+            },
+          }),
+        });
+      } catch (e) {
+        console.error("update session error:", e);
+      }
       mutate(`/api/btc-lab/sessions/${latestId}`);
     }
   }

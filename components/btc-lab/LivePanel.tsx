@@ -75,7 +75,9 @@ export default function LivePanel({
     : null;
 
   function handleSetTarget() {
-    const val = parseFloat(inputValue);
+    // Handle commas, spaces, dollar signs
+    const cleaned = inputValue.replace(/[$,\s]/g, "");
+    const val = parseFloat(cleaned);
     if (!isNaN(val) && val > 0) {
       onSetManualTarget(val);
       setInputValue("");
