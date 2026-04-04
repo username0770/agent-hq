@@ -6,6 +6,10 @@ export interface Strategy {
   description: string;
   color: string;
   isActive: boolean;
+  minEdge: number;
+  betAmountUSDC: number;
+  autobet: boolean;
+  autobetPhase: "early" | "mid" | "late" | "all";
   createdAt: string;
   updatedAt: string;
   totalBets: number;

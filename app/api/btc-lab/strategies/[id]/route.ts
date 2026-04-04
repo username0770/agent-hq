@@ -27,7 +27,8 @@ export async function PATCH(
   const raw = await r.get(KV.strategy(id));
   if (!raw) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const strat = typeof raw === "string" ? JSON.parse(raw) : raw;
-  const allowed = ["name", "description", "color", "isActive"];
+  const allowed = ["name", "description", "color", "isActive",
+                    "minEdge", "betAmountUSDC", "autobet", "autobetPhase"];
   for (const k of allowed) {
     if (body[k] !== undefined) strat[k] = body[k];
   }

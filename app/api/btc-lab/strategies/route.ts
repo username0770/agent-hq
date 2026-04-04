@@ -26,14 +26,20 @@ export async function POST(req: NextRequest) {
   const denied = await checkAuth(req);
   if (denied) return denied;
   try {
-    const { name, description, color } = await req.json();
-    if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
+    const body = await req.json();
+    if (!body.name) return NextResponse.json({ error: "name required" }, { status: 400 });
     const r = getRedis();
     const id = `strat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const now = new Date().toISOString();
     const strategy: Strategy = {
-      id, name, description: description || "", color: color || "#10b981",
-      isActive: true, createdAt: now, updatedAt: now,
+      id, name: body.name, description: body.description || "",
+      color: body.color || "#10b981",
+      isActive: true,
+      minEdge: body.minEdge ?? 7,
+      betAmountUSDC: body.betAmountUSDC ?? 10,
+      autobet: body.autobet ?? false,
+      autobetPhase: body.autobetPhase || "all",
+      createdAt: now, updatedAt: now,
       totalBets: 0, totalRealBets: 0, totalPaperBets: 0,
       winRate: 0, totalPnl: 0, totalFees: 0, avgEdge: 0,
     };
