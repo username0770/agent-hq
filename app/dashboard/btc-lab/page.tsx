@@ -31,6 +31,7 @@ interface Strategy {
   id: string;
   name: string;
   enabled: boolean;
+  mirror: boolean;
   minEdge: number;
   timerMin: number;
   timerMax: number;
@@ -395,6 +396,11 @@ function StrategiesPanel({
                   onChange={(e) => update(i, { name: e.target.value })}
                   className="bg-transparent text-sm font-bold text-zinc-200 border-b border-transparent focus:border-zinc-600 focus:outline-none"
                 />
+                {s.mirror && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400">
+                    MIRROR
+                  </span>
+                )}
                 <span className="text-[10px] text-zinc-500 ml-auto">
                   ${s.betAmount} | edge &gt;{s.minEdge}% | {tmx}-{tmn} | {(s.priceMin*100).toFixed(0)}-{(s.priceMax*100).toFixed(0)}c
                 </span>
@@ -402,6 +408,20 @@ function StrategiesPanel({
 
               {s.enabled && (
                 <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-4">
+                  {/* Mirror toggle */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Mirror (contrarian)</label>
+                    <button
+                      onClick={() => update(i, { mirror: !s.mirror })}
+                      className={`w-full rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                        s.mirror
+                          ? "border-red-600 bg-red-900/30 text-red-400"
+                          : "border-zinc-700 bg-zinc-800 text-zinc-500"
+                      }`}
+                    >
+                      {s.mirror ? "ON — bet opposite" : "OFF — bet normal"}
+                    </button>
+                  </div>
                   {/* Edge */}
                   <div>
                     <label className="block text-[10px] text-zinc-500 mb-1">Min Edge %</label>
