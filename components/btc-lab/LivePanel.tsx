@@ -111,9 +111,16 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
   const medCl = lastTick?.cexMedian && lastTick?.chainlink ? lastTick.cexMedian - lastTick.chainlink : null;
 
   function handleSetTarget() {
-    const cleaned = inputValue.replace(/[$,\s]/g, "");
+    // Support all formats: $67,375.175  67 375,175  67375.17
+    let cleaned = inputValue.replace(/[$\s\u00a0]/g, "");
+    // EU/RU format: comma=decimal, no dot → convert
+    if (cleaned.includes(",") && !cleaned.includes(".")) {
+      cleaned = cleaned.replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
     const val = parseFloat(cleaned);
-    if (!isNaN(val) && val > 0) {
+    if (!isNaN(val) && val > 1000) {
       onSetManualTarget(val);
       setInputValue("");
     }
