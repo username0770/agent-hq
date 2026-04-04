@@ -27,6 +27,8 @@ export interface PaperBet {
   cexMedianAtBet: number;
   targetPrice: number;
   targetSource: "auto" | "manual";
+  strategyId: string;
+  strategyName: string;
   moveAtBet: number;
   fairProbability: number;
   edge: number;

@@ -39,6 +39,8 @@ export async function POST(
     cexMedianAtBet: body.cexMedianAtBet || 0,
     targetPrice: body.targetPrice || 0,
     targetSource: body.targetSource || "auto",
+    strategyId: body.strategyId || "default",
+    strategyName: body.strategyName || "Default",
     moveAtBet: body.moveAtBet || 0,
     fairProbability: body.fairProbability || 0.5,
     edge: body.edge || 0,

@@ -60,6 +60,11 @@ export default function BetCard({ bet, sessionId, onUpdate }: BetCardProps) {
           }`}>
             {bet.targetSource === "manual" ? "manual" : "auto"}
           </span>
+          {bet.strategyName && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-purple-900/50 text-purple-400">
+              {bet.strategyName}
+            </span>
+          )}
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge}`}>
           {bet.outcome}

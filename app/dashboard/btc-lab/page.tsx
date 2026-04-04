@@ -14,7 +14,10 @@ const SessionChart = dynamic(
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-interface BetSettings {
+interface Strategy {
+  id: string;
+  name: string;
+  enabled: boolean;
   minEdge: number;
   timerMin: number;
   timerMax: number;
@@ -28,7 +31,7 @@ interface BetSettings {
 interface ControlState {
   running: boolean;
   manualTarget: number | null;
-  settings: BetSettings;
+  strategies: Strategy[];
   startedAt: string | null;
   stoppedAt: string | null;
 }
@@ -204,13 +207,12 @@ export default function BtcLabPage() {
         </div>
       )}
 
-      {/* Settings Panel */}
-      {showSettings && control?.settings && (
-        <SettingsPanel
-          settings={control.settings}
-          onSave={(s) => {
-            sendControl({ settings: s });
-            setShowSettings(false);
+      {/* Strategies Panel */}
+      {showSettings && control?.strategies && (
+        <StrategiesPanel
+          strategies={control.strategies}
+          onSave={(strats) => {
+            sendControl({ strategies: strats });
           }}
         />
       )}
@@ -294,174 +296,140 @@ function StatBadge({
   );
 }
 
-function SettingsPanel({
-  settings,
+function StrategiesPanel({
+  strategies,
   onSave,
 }: {
-  settings: BetSettings;
-  onSave: (s: BetSettings) => void;
+  strategies: Strategy[];
+  onSave: (s: Strategy[]) => void;
 }) {
-  const [s, setS] = useState({ ...settings });
+  const [strats, setStrats] = useState(strategies.map(s => ({ ...s })));
+  const colors = ["emerald", "blue", "orange"];
 
-  const timerMinLabel = `${Math.floor(s.timerMin / 60)}:${String(s.timerMin % 60).padStart(2, "0")}`;
-  const timerMaxLabel = `${Math.floor(s.timerMax / 60)}:${String(s.timerMax % 60).padStart(2, "0")}`;
+  function update(idx: number, patch: Partial<Strategy>) {
+    const copy = strats.map((s, i) => i === idx ? { ...s, ...patch } : s);
+    setStrats(copy);
+  }
 
   return (
     <div className="rounded-xl border border-yellow-800/50 bg-zinc-900 p-5">
-      <h3 className="text-sm font-bold text-zinc-200 mb-4">Betting Settings</h3>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-
-        {/* Min Edge */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">
-            Min Edge after fee (%)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min={1} max={30} step={0.5}
-              value={s.minEdge}
-              onChange={(e) => setS({ ...s, minEdge: parseFloat(e.target.value) })}
-              className="flex-1 accent-yellow-500"
-            />
-            <span className="text-sm font-mono font-bold text-yellow-400 w-12 text-right">
-              {s.minEdge}%
-            </span>
-          </div>
-          <p className="text-[10px] text-zinc-600 mt-1">
-            Ставка только когда edge &gt; {s.minEdge}% после комиссии
-          </p>
-        </div>
-
-        {/* Timer range: min (latest bet) */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">
-            Timer: earliest bet (seconds left)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min={0} max={300} step={5}
-              value={s.timerMin}
-              onChange={(e) => setS({ ...s, timerMin: parseInt(e.target.value) })}
-              className="flex-1 accent-yellow-500"
-            />
-            <span className="text-sm font-mono font-bold text-zinc-300 w-12 text-right">
-              {timerMinLabel}
-            </span>
-          </div>
-          <p className="text-[10px] text-zinc-600 mt-1">
-            Не ставить когда осталось меньше {s.timerMin}с
-          </p>
-        </div>
-
-        {/* Timer range: max (earliest bet) */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">
-            Timer: latest bet (seconds left)
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min={0} max={300} step={5}
-              value={s.timerMax}
-              onChange={(e) => setS({ ...s, timerMax: parseInt(e.target.value) })}
-              className="flex-1 accent-yellow-500"
-            />
-            <span className="text-sm font-mono font-bold text-zinc-300 w-12 text-right">
-              {timerMaxLabel}
-            </span>
-          </div>
-          <p className="text-[10px] text-zinc-600 mt-1">
-            Не ставить когда осталось больше {s.timerMax}с
-          </p>
-        </div>
-
-        {/* Bet amount */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Bet amount ($)</label>
-          <input
-            type="number" min={1} max={1000} step={10}
-            value={s.betAmount}
-            onChange={(e) => setS({ ...s, betAmount: parseInt(e.target.value) || 100 })}
-            className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
-          />
-        </div>
-
-        {/* Max bets per window */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Max bets per window</label>
-          <input
-            type="number" min={1} max={20} step={1}
-            value={s.maxBetsPerWindow}
-            onChange={(e) => setS({ ...s, maxBetsPerWindow: parseInt(e.target.value) || 5 })}
-            className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
-          />
-        </div>
-
-        {/* Cooldown */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Cooldown between bets (sec)</label>
-          <input
-            type="number" min={5} max={120} step={5}
-            value={s.cooldown}
-            onChange={(e) => setS({ ...s, cooldown: parseInt(e.target.value) || 30 })}
-            className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-sm text-zinc-200 focus:border-yellow-500 focus:outline-none"
-          />
-        </div>
-
-        {/* Price Min */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">
-            Min market price to buy
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min={0.01} max={0.99} step={0.01}
-              value={s.priceMin}
-              onChange={(e) => setS({ ...s, priceMin: parseFloat(e.target.value) })}
-              className="flex-1 accent-yellow-500"
-            />
-            <span className="text-sm font-mono font-bold text-yellow-400 w-12 text-right">
-              {(s.priceMin * 100).toFixed(0)}c
-            </span>
-          </div>
-          <p className="text-[10px] text-zinc-600 mt-1">
-            Только рынки с ценой {(s.priceMin * 100).toFixed(0)}%+ ({(s.priceMin * 100).toFixed(0)}c+)
-          </p>
-        </div>
-
-        {/* Price Max */}
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">
-            Max market price to buy
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min={0.01} max={0.99} step={0.01}
-              value={s.priceMax}
-              onChange={(e) => setS({ ...s, priceMax: parseFloat(e.target.value) })}
-              className="flex-1 accent-yellow-500"
-            />
-            <span className="text-sm font-mono font-bold text-yellow-400 w-12 text-right">
-              {(s.priceMax * 100).toFixed(0)}c
-            </span>
-          </div>
-          <p className="text-[10px] text-zinc-600 mt-1">
-            Не покупать дороже {(s.priceMax * 100).toFixed(0)}c
-          </p>
-        </div>
-      </div>
-
-      {/* Preview */}
-      <div className="mt-4 rounded-lg bg-zinc-950 p-3 text-xs text-zinc-400">
-        ${s.betAmount} при edge &gt; {s.minEdge}% | таймер {timerMaxLabel}–{timerMinLabel} | цена {(s.priceMin*100).toFixed(0)}c–{(s.priceMax*100).toFixed(0)}c | макс {s.maxBetsPerWindow} ставок | пауза {s.cooldown}с
-      </div>
-
-      <div className="mt-4 flex gap-2">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-zinc-200">Strategies</h3>
         <button
-          onClick={() => onSave(s)}
-          className="rounded-lg bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-500"
+          onClick={() => onSave(strats)}
+          className="rounded-lg bg-yellow-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-yellow-500"
         >
-          Save Settings
+          Save All
         </button>
+      </div>
+
+      <div className="space-y-4">
+        {strats.map((s, i) => {
+          const c = colors[i] || "zinc";
+          const tmn = `${Math.floor(s.timerMin/60)}:${String(s.timerMin%60).padStart(2,"0")}`;
+          const tmx = `${Math.floor(s.timerMax/60)}:${String(s.timerMax%60).padStart(2,"0")}`;
+
+          return (
+            <div key={s.id} className={`rounded-lg border p-4 ${
+              s.enabled ? `border-${c}-800/50 bg-${c}-950/10` : "border-zinc-800 bg-zinc-950 opacity-60"
+            }`}>
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-3">
+                <button
+                  onClick={() => update(i, { enabled: !s.enabled })}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${
+                    s.enabled ? "bg-emerald-600" : "bg-zinc-700"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                    s.enabled ? "left-5" : "left-0.5"
+                  }`} />
+                </button>
+                <input
+                  value={s.name}
+                  onChange={(e) => update(i, { name: e.target.value })}
+                  className="bg-transparent text-sm font-bold text-zinc-200 border-b border-transparent focus:border-zinc-600 focus:outline-none"
+                />
+                <span className="text-[10px] text-zinc-500 ml-auto">
+                  ${s.betAmount} | edge &gt;{s.minEdge}% | {tmx}-{tmn} | {(s.priceMin*100).toFixed(0)}-{(s.priceMax*100).toFixed(0)}c
+                </span>
+              </div>
+
+              {s.enabled && (
+                <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-4">
+                  {/* Edge */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Min Edge %</label>
+                    <div className="flex items-center gap-1">
+                      <input type="range" min={1} max={30} step={0.5} value={s.minEdge}
+                        onChange={(e) => update(i, { minEdge: parseFloat(e.target.value) })}
+                        className="flex-1 accent-yellow-500" />
+                      <span className="text-xs font-mono w-8 text-right text-yellow-400">{s.minEdge}</span>
+                    </div>
+                  </div>
+
+                  {/* Bet Amount */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Bet $</label>
+                    <input type="number" min={1} max={1000} step={10} value={s.betAmount}
+                      onChange={(e) => update(i, { betAmount: parseInt(e.target.value) || 100 })}
+                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:outline-none" />
+                  </div>
+
+                  {/* Timer Min (stop betting) */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Timer from {tmx}</label>
+                    <div className="flex items-center gap-1">
+                      <input type="range" min={0} max={300} step={5} value={s.timerMax}
+                        onChange={(e) => update(i, { timerMax: parseInt(e.target.value) })}
+                        className="flex-1 accent-yellow-500" />
+                      <span className="text-xs font-mono w-10 text-right">{tmx}</span>
+                    </div>
+                  </div>
+
+                  {/* Timer Max (start betting) */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Timer to {tmn}</label>
+                    <div className="flex items-center gap-1">
+                      <input type="range" min={0} max={300} step={5} value={s.timerMin}
+                        onChange={(e) => update(i, { timerMin: parseInt(e.target.value) })}
+                        className="flex-1 accent-yellow-500" />
+                      <span className="text-xs font-mono w-10 text-right">{tmn}</span>
+                    </div>
+                  </div>
+
+                  {/* Price range */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Price min {(s.priceMin*100).toFixed(0)}c</label>
+                    <input type="range" min={0.01} max={0.99} step={0.01} value={s.priceMin}
+                      onChange={(e) => update(i, { priceMin: parseFloat(e.target.value) })}
+                      className="w-full accent-yellow-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Price max {(s.priceMax*100).toFixed(0)}c</label>
+                    <input type="range" min={0.01} max={0.99} step={0.01} value={s.priceMax}
+                      onChange={(e) => update(i, { priceMax: parseFloat(e.target.value) })}
+                      className="w-full accent-yellow-500" />
+                  </div>
+
+                  {/* Max bets + cooldown */}
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Max bets/window</label>
+                    <input type="number" min={1} max={20} value={s.maxBetsPerWindow}
+                      onChange={(e) => update(i, { maxBetsPerWindow: parseInt(e.target.value) || 5 })}
+                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-1">Cooldown (sec)</label>
+                    <input type="number" min={5} max={120} step={5} value={s.cooldown}
+                      onChange={(e) => update(i, { cooldown: parseInt(e.target.value) || 30 })}
+                      className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:outline-none" />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

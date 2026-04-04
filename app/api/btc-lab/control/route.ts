@@ -1,19 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis, checkAuth } from "@/lib/kv";
 
-// Control state in Redis:
-// btc-lab:control → { running, manualTarget, settings, startedAt, stoppedAt }
-
-const DEFAULT_SETTINGS = {
-  minEdge: 7,           // minimum edge % after fee to place bet
-  timerMin: 0,          // earliest seconds left (0 = can bet until end)
-  timerMax: 300,        // latest seconds left (300 = can bet from start)
-  betAmount: 100,       // $ per bet
-  maxBetsPerWindow: 5,  // max bets per 5min window
-  cooldown: 30,         // seconds between bets
-  priceMin: 0.01,       // min market price to buy (0.85 = only 85%+ markets)
-  priceMax: 0.99,       // max market price to buy
+const DEFAULT_STRATEGY = {
+  enabled: true,
+  name: "Default",
+  minEdge: 7,
+  timerMin: 0,
+  timerMax: 300,
+  betAmount: 100,
+  maxBetsPerWindow: 5,
+  cooldown: 30,
+  priceMin: 0.01,
+  priceMax: 0.99,
 };
+
+const DEFAULT_STRATEGIES = [
+  {
+    ...DEFAULT_STRATEGY,
+    id: "aggressive",
+    name: "Aggressive",
+    enabled: true,
+    minEdge: 3,
+    timerMin: 0,
+    timerMax: 300,
+    betAmount: 50,
+    priceMin: 0.01,
+    priceMax: 0.99,
+  },
+  {
+    ...DEFAULT_STRATEGY,
+    id: "sniper",
+    name: "Sniper",
+    enabled: true,
+    minEdge: 5,
+    timerMin: 0,
+    timerMax: 90,
+    betAmount: 100,
+    priceMin: 0.80,
+    priceMax: 0.99,
+  },
+  {
+    ...DEFAULT_STRATEGY,
+    id: "conservative",
+    name: "Conservative",
+    enabled: false,
+    minEdge: 10,
+    timerMin: 30,
+    timerMax: 180,
+    betAmount: 200,
+    priceMin: 0.60,
+    priceMax: 0.95,
+  },
+];
 
 export async function GET(req: NextRequest) {
   const denied = await checkAuth(req);
@@ -24,10 +62,17 @@ export async function GET(req: NextRequest) {
     const raw = await r.get("btc-lab:control");
     const state = raw
       ? typeof raw === "string" ? JSON.parse(raw) : raw
-      : { running: false, manualTarget: null, settings: DEFAULT_SETTINGS,
+      : { running: false, manualTarget: null, strategies: DEFAULT_STRATEGIES,
           startedAt: null, stoppedAt: null };
-    // Ensure settings always has defaults
-    state.settings = { ...DEFAULT_SETTINGS, ...state.settings };
+    // Ensure strategies exist with defaults
+    if (!state.strategies || !Array.isArray(state.strategies)) {
+      state.strategies = DEFAULT_STRATEGIES;
+    }
+    // Backfill missing fields
+    state.strategies = state.strategies.map((s: Record<string, unknown>, i: number) => ({
+      ...DEFAULT_STRATEGIES[i] || DEFAULT_STRATEGY,
+      ...s,
+    }));
     return NextResponse.json(state);
   } catch (e: unknown) {
     return NextResponse.json(
@@ -48,9 +93,9 @@ export async function POST(req: NextRequest) {
     const raw = await r.get("btc-lab:control");
     const state = raw
       ? typeof raw === "string" ? JSON.parse(raw) : raw
-      : { running: false, manualTarget: null, settings: DEFAULT_SETTINGS,
+      : { running: false, manualTarget: null, strategies: DEFAULT_STRATEGIES,
           startedAt: null, stoppedAt: null };
-    state.settings = { ...DEFAULT_SETTINGS, ...state.settings };
+    if (!state.strategies) state.strategies = DEFAULT_STRATEGIES;
 
     if (body.action === "start") {
       state.running = true;
@@ -65,8 +110,13 @@ export async function POST(req: NextRequest) {
       state.manualTarget = body.manualTarget;
     }
 
+    if (body.strategies) {
+      state.strategies = body.strategies;
+    }
+
+    // Legacy: single settings update → apply to first strategy
     if (body.settings) {
-      state.settings = { ...state.settings, ...body.settings };
+      state.strategies[0] = { ...state.strategies[0], ...body.settings };
     }
 
     await r.set("btc-lab:control", JSON.stringify(state));
