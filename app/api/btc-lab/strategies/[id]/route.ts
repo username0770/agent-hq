@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRedis, checkAuth } from "@/lib/kv";
-import { KV } from "@/lib/btc-lab/types";
+import { checkAuth } from "@/lib/kv";
+
+const LOCAL_API = process.env.BTC_LAB_LOCAL_API || "http://localhost:8765";
 
 export async function GET(
   req: NextRequest,
@@ -9,10 +10,14 @@ export async function GET(
   const denied = await checkAuth(req);
   if (denied) return denied;
   const { id } = await params;
-  const r = getRedis();
-  const raw = await r.get(KV.strategy(id));
-  if (!raw) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(typeof raw === "string" ? JSON.parse(raw) : raw);
+  try {
+    const res = await fetch(`${LOCAL_API}/strategies`);
+    const all = await res.json();
+    const s = Array.isArray(all) ? all.find((x: { id: string }) => x.id === id) : null;
+    return s ? NextResponse.json(s) : NextResponse.json({ error: "Not found" }, { status: 404 });
+  } catch {
+    return NextResponse.json({ error: "Offline" }, { status: 503 });
+  }
 }
 
 export async function PATCH(
@@ -23,20 +28,16 @@ export async function PATCH(
   if (denied) return denied;
   const { id } = await params;
   const body = await req.json();
-  const r = getRedis();
-  const raw = await r.get(KV.strategy(id));
-  if (!raw) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const strat = typeof raw === "string" ? JSON.parse(raw) : raw;
-  const allowed = ["name", "description", "color", "isActive",
-                    "minEdge", "betAmountUSDC", "autobet", "autobetPhase",
-                    "timerMin", "timerMax", "priceMin", "priceMax",
-                    "mirror", "fairMin", "cooldown", "maxBetsPerWindow"];
-  for (const k of allowed) {
-    if (body[k] !== undefined) strat[k] = body[k];
+  try {
+    const res = await fetch(`${LOCAL_API}/strategies/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return NextResponse.json(await res.json());
+  } catch {
+    return NextResponse.json({ error: "Offline" }, { status: 503 });
   }
-  strat.updatedAt = new Date().toISOString();
-  await r.set(KV.strategy(id), JSON.stringify(strat));
-  return NextResponse.json(strat);
 }
 
 export async function DELETE(
@@ -46,20 +47,10 @@ export async function DELETE(
   const denied = await checkAuth(req);
   if (denied) return denied;
   const { id } = await params;
-  const r = getRedis();
-  // Delete all bets for this strategy
-  const betIds: string[] = (await r.smembers(KV.strategyBets(id))) || [];
-  if (betIds.length) {
-    const pipe = r.pipeline();
-    for (const bid of betIds) {
-      pipe.del(KV.bet(bid));
-      pipe.srem(KV.betsReal, bid);
-      pipe.srem(KV.betsPaper, bid);
-    }
-    await pipe.exec();
+  try {
+    await fetch(`${LOCAL_API}/strategies/${id}`, { method: "DELETE" });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Offline" }, { status: 503 });
   }
-  await r.del(KV.strategyBets(id));
-  await r.del(KV.strategy(id));
-  await r.srem(KV.strategiesList, id);
-  return NextResponse.json({ ok: true, deletedBets: betIds.length });
 }

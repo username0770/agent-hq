@@ -25,7 +25,10 @@ const SessionChart = dynamic(
   { ssr: false }
 );
 
+const LOCAL = "http://localhost:8765";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const localFetcher = (path: string) =>
+  fetch(`${LOCAL}${path}`).then((r) => r.json()).catch(() => null);
 
 interface Strategy {
   id: string;
@@ -64,45 +67,61 @@ export default function BtcLabPage() {
   );
 
   // Sessions list
-  const { data: sessions = [] } = useSWR<SessionMeta[]>(
-    "/api/btc-lab/sessions",
-    fetcher,
-    { refreshInterval: 3000 }
+  // Direct from FastAPI — faster, no Next.js proxy
+  const { data: rawSessions } = useSWR(
+    "/sessions", localFetcher, { refreshInterval: 2000 }
   );
+  const sessions: SessionMeta[] = Array.isArray(rawSessions) ? rawSessions : [];
 
-  // Latest session with full ticks
+  // Latest session — ticks + bets
   const latestId = sessions[0]?.id;
   const { data: latestSession } = useSWR<Session>(
-    latestId ? `/api/btc-lab/sessions/${latestId}` : null,
-    fetcher,
-    { refreshInterval: 2000 }
+    latestId ? `/sessions/${latestId}/full` : null,
+    async (path: string) => {
+      const sid = latestId;
+      const [ticks, betsAll] = await Promise.all([
+        localFetcher(`/sessions/${sid}/ticks`),
+        localFetcher(`/bets?limit=50`),
+      ]);
+      const meta = sessions.find((s) => s.id === sid) || {};
+      const sessionBets = Array.isArray(betsAll)
+        ? betsAll.filter((b: Record<string, unknown>) =>
+            (b.session_id || b.sessionId) === sid)
+        : [];
+      return {
+        ...meta,
+        ticks: Array.isArray(ticks) ? ticks : [],
+        orderBook: [],
+        bets: sessionBets,
+      } as unknown as Session;
+    },
+    { refreshInterval: 1000 }  // 1 second!
   );
 
-  // Chart data
+  // Chart data — direct from FastAPI
   const chartIds = sessions.slice(0, chartCount).map((s) => s.id);
   const { data: chartSessions = [] } = useSWR<Session[]>(
-    chartIds.length > 0
-      ? `/api/btc-lab/sessions?chart=${chartIds.join(",")}`
-      : null,
-    async (url: string) => {
-      const ids = new URL(url, window.location.origin).searchParams
-        .get("chart")
-        ?.split(",") || [];
-      return Promise.all(
-        ids.map((id) =>
-          fetch(`/api/btc-lab/sessions/${id}`).then((r) => r.json())
-        )
+    chartIds.length > 0 ? `chart:${chartIds.join(",")}` : null,
+    async () => {
+      const results = await Promise.all(
+        chartIds.map(async (sid) => {
+          const ticks = await localFetcher(`/sessions/${sid}/ticks`);
+          const meta = sessions.find((s) => s.id === sid) || {};
+          return { ...meta, ticks: Array.isArray(ticks) ? ticks : [], orderBook: [], bets: [] } as unknown as Session;
+        })
       );
+      return results;
     },
-    { refreshInterval: 5000 }
-  );
-
-  // Summary
-  const { data: stats } = useSWR<SummaryData>(
-    "/api/btc-lab/summary",
-    fetcher,
     { refreshInterval: 10000 }
   );
+
+  // Summary — direct from FastAPI
+  const { data: stats } = useSWR<SummaryData>(
+    "/stats", localFetcher, { refreshInterval: 5000 }
+  );
+
+  // Health + mode info from local API
+  const { data: health } = useSWR("/health", localFetcher, { refreshInterval: 5000 });
 
   const isLive = latestSession && !latestSession.completedAt;
 
@@ -120,27 +139,20 @@ export default function BtcLabPage() {
     mutate("/api/btc-lab/control");
   }
 
+  // Read manual target from local API
+  const { data: targetState } = useSWR("/target", localFetcher, { refreshInterval: 3000 });
+  const localManualTarget = targetState?.mode === "manual" ? targetState.target : null;
+
   async function handleSetManualTarget(price: number | null) {
-    await sendControl({
-      manualTarget: price,
-      targetMode: price !== null ? "manual" : "auto",
-    });
-    if (latestId) {
-      try {
-        await fetch(`/api/btc-lab/sessions/${latestId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            meta: {
-              targetPrice: price ?? undefined,
-              targetSource: price !== null ? "manual" : "auto",
-            },
-          }),
-        });
-      } catch (e) {
-        console.error("update session error:", e);
-      }
-      mutate(`/api/btc-lab/sessions/${latestId}`);
+    try {
+      await fetch(`${LOCAL}/target`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ price }),
+      });
+      mutate("/target");
+    } catch (e) {
+      console.error("target error:", e);
     }
   }
 
@@ -156,21 +168,24 @@ export default function BtcLabPage() {
         </div>
         <div className="flex items-center gap-3">
           {/* Stats */}
-          {stats && stats.totalBets > 0 && (
-            <>
-              <StatBadge label="Bets" value={String(stats.totalBets)} />
-              <StatBadge
-                label="Win Rate"
-                value={`${stats.winRate}%`}
-                color={stats.winRate >= 50 ? "emerald" : "red"}
-              />
-              <StatBadge
-                label="P&L"
-                value={`${stats.totalPnl >= 0 ? "+" : ""}$${stats.totalPnl.toFixed(0)}`}
-                color={stats.totalPnl >= 0 ? "emerald" : "red"}
-              />
-            </>
-          )}
+          {stats && (() => {
+            const s = stats as unknown as Record<string, unknown>;
+            const all = (s.all || s) as Record<string, unknown>;
+            const tb = Number(all.total_bets ?? all.totalBets ?? 0);
+            const wr = Number(all.winrate ?? all.winRate ?? 0);
+            const pnl = Number(all.total_pnl ?? all.totalPnl ?? 0);
+            const fees = Number(all.total_fees ?? all.totalFees ?? 0);
+            if (tb <= 0) return null;
+            return <>
+              <StatBadge label="Bets" value={String(tb)} />
+              <StatBadge label="Win Rate" value={`${wr}%`}
+                color={wr >= 50 ? "emerald" : "red"} />
+              <StatBadge label="P&L"
+                value={`${pnl >= 0 ? "+" : ""}$${pnl.toFixed(0)}`}
+                color={pnl >= 0 ? "emerald" : "red"} />
+              {fees > 0 && <StatBadge label="Fees" value={`$${fees.toFixed(0)}`} />}
+            </>;
+          })()}
           {/* Control buttons */}
           <div className="flex gap-2 ml-2">
             <button
@@ -218,11 +233,31 @@ export default function BtcLabPage() {
             : control.stoppedAt
               ? `Script stopped at ${new Date(control.stoppedAt).toLocaleTimeString()}`
               : "Script not started"}
-          {control.manualTarget !== null && (
-            <span className="ml-auto text-yellow-400">
-              Manual target: ${control.manualTarget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {health?.makerMode ? (
+              <span className="rounded px-1.5 py-0.5 text-[9px] bg-cyan-900/50 text-cyan-400">
+                MAKER {health.makerOrderTTL}s
+              </span>
+            ) : (
+              <span className="rounded px-1.5 py-0.5 text-[9px] bg-orange-900/50 text-orange-400">
+                TAKER
+              </span>
+            )}
+            {health?.realBetting ? (
+              <span className="rounded px-1.5 py-0.5 text-[9px] bg-red-900/50 text-red-400">
+                REAL ${health.betAmount}
+              </span>
+            ) : (
+              <span className="rounded px-1.5 py-0.5 text-[9px] bg-blue-900/50 text-blue-400">
+                PAPER
+              </span>
+            )}
+            {localManualTarget != null && (
+              <span className="text-yellow-400">
+                Target: ${Number(localManualTarget).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -258,15 +293,45 @@ export default function BtcLabPage() {
         </div>
       )}
 
-      {/* Strategies Panel */}
-      {showSettings && control?.strategies && (
-        <StrategiesPanel
-          strategies={control.strategies}
-          onSave={(strats) => {
-            sendControl({ strategies: strats });
-          }}
-        />
-      )}
+      {/* Phase Performance */}
+      {stats && (() => {
+        const all = ((stats as unknown as Record<string, unknown>).all || stats) as Record<string, unknown>;
+        const bp = all.by_phase as Record<string, {bets:number; wins:number; winrate:number; pnl:number}> | undefined;
+        if (!bp) return null;
+        const phases = [
+          { key: "early", label: "Early (>3m)", ...bp.early },
+          { key: "mid", label: "Mid (1-3m)", ...bp.mid },
+          { key: "late", label: "Late (<1m)", ...bp.late },
+        ].filter(p => p.bets > 0);
+        if (!phases.length) return null;
+        return (
+          <div className="grid grid-cols-3 gap-2">
+            {phases.map(p => (
+              <div key={p.key} className="rounded-lg border border-zinc-800 bg-zinc-900 p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-zinc-500">{p.label}</span>
+                  <span className={`text-xs font-bold ${p.winrate >= 50 ? "text-emerald-400" : "text-red-400"}`}>
+                    {p.winrate}%
+                  </span>
+                </div>
+                <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${p.winrate >= 50 ? "bg-emerald-500" : "bg-red-500"}`}
+                    style={{width: `${p.winrate}%`}} />
+                </div>
+                <div className="flex justify-between mt-1 text-[9px] text-zinc-600">
+                  <span>{p.bets} bets</span>
+                  <span className={p.pnl >= 0 ? "text-emerald-500" : "text-red-500"}>
+                    {p.pnl >= 0 ? "+" : ""}${p.pnl.toFixed(0)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Inline Strategies */}
+      {showSettings && <InlineStrategies />}
 
       {/* LIVE Panel */}
       <section>
@@ -278,7 +343,7 @@ export default function BtcLabPage() {
         </h2>
         <LivePanel
           session={isLive ? latestSession! : null}
-          manualTarget={control?.manualTarget ?? null}
+          manualTarget={localManualTarget}
           onSetManualTarget={handleSetManualTarget}
           onBetUpdate={() => {
             mutate(`/api/btc-lab/sessions/${latestId}`);
@@ -286,6 +351,9 @@ export default function BtcLabPage() {
           }}
         />
       </section>
+
+      {/* Polymarket Real Trades */}
+      <PolymarketTrades />
 
       {/* Chart */}
       <section>
@@ -347,7 +415,204 @@ function StatBadge({
   );
 }
 
-function StrategiesPanel({
+function InlineStrategies() {
+  const { data: raw } = useSWR("/strategies", localFetcher, { refreshInterval: 3000 });
+  const strats = Array.isArray(raw) ? raw : [];
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+
+  async function create() {
+    if (!name.trim()) return;
+    await fetch(`${LOCAL}/strategies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    setName("");
+    setCreating(false);
+    mutate("/strategies");
+  }
+
+  async function toggle(id: string, current: boolean) {
+    await fetch(`${LOCAL}/strategies/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !current }),
+    });
+    mutate("/strategies");
+  }
+
+  async function del(id: string) {
+    await fetch(`${LOCAL}/strategies/${id}`, { method: "DELETE" });
+    mutate("/strategies");
+  }
+
+  const fmt = (n: number) => `${Math.floor((n||0)/60)}:${String((n||0)%60).padStart(2,"0")}`;
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-bold text-zinc-200">Strategies</h3>
+        <div className="flex gap-2">
+          {!creating && (
+            <button onClick={() => setCreating(true)}
+              className="rounded bg-emerald-600 px-3 py-1 text-xs text-white hover:bg-emerald-500">
+              + New
+            </button>
+          )}
+          <a href="/dashboard/btc-lab/strategies"
+            className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:text-zinc-200">
+            Full page
+          </a>
+        </div>
+      </div>
+
+      {creating && (
+        <div className="flex gap-2 mb-3">
+          <input value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && create()}
+            placeholder="Strategy name..." autoFocus
+            className="flex-1 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-sm text-zinc-200 focus:outline-none" />
+          <button onClick={create}
+            className="rounded bg-emerald-600 px-3 py-1 text-xs text-white">Add</button>
+          <button onClick={() => setCreating(false)}
+            className="text-xs text-zinc-500">Cancel</button>
+        </div>
+      )}
+
+      {strats.length === 0 ? (
+        <p className="text-xs text-zinc-500">No strategies. Create one to start tracking.</p>
+      ) : (
+        <div className="space-y-2">
+          {strats.map((s: Record<string, unknown>) => {
+            const id = String(s.id || "");
+            const active = Boolean(s.isActive ?? s.is_active);
+            const pnl = Number(s.totalPnl ?? s.total_pnl ?? 0);
+            const bets = Number(s.totalBets ?? s.total_bets ?? 0);
+            const wr = Number(s.winrate ?? s.winRate ?? 0);
+            const edge = Number(s.minEdge ?? s.min_edge ?? 7);
+            const amt = Number(s.betAmountUSDC ?? s.bet_amount_usdc ?? 10);
+            const tMin = Number(s.timerMin ?? s.timer_min ?? 0);
+            const tMax = Number(s.timerMax ?? s.timer_max ?? 300);
+            const auto = Boolean(s.autobet);
+            const mirror = Boolean(s.mirror);
+
+            return (
+              <div key={id} className={`rounded-lg border p-3 ${
+                active ? "border-zinc-700 bg-zinc-950" : "border-zinc-800 bg-zinc-950 opacity-50"
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: active ? String(s.color || "#3b82f6") : "#3f3f46" }} />
+                  <span className="text-sm font-bold text-zinc-200">{String(s.name)}</span>
+                  {mirror && <span className="text-[8px] px-1 rounded bg-red-900/50 text-red-400">MIRROR</span>}
+                  {auto && <span className="text-[8px] px-1 rounded bg-emerald-900/50 text-emerald-400">AUTO</span>}
+                  <span className="text-[9px] text-zinc-600 font-mono ml-1">{id.slice(0, 20)}</span>
+                  <div className="ml-auto flex gap-1">
+                    <button onClick={() => toggle(id, active)}
+                      className={`rounded px-2 py-0.5 text-[9px] border ${
+                        active ? "border-emerald-700 text-emerald-400" : "border-zinc-700 text-zinc-500"
+                      }`}>{active ? "ON" : "OFF"}</button>
+                    <button onClick={() => del(id)}
+                      className="rounded px-2 py-0.5 text-[9px] border border-red-800/50 text-red-400 hover:bg-red-900/30">X</button>
+                  </div>
+                </div>
+                <div className="mt-1 flex gap-3 text-[10px] text-zinc-500">
+                  <span>edge&gt;{edge}%</span>
+                  <span>${amt}</span>
+                  <span>{fmt(tMax)}-{fmt(tMin)}</span>
+                  {bets > 0 && <>
+                    <span className={pnl >= 0 ? "text-emerald-400" : "text-red-400"}>
+                      P&L: {pnl >= 0 ? "+" : ""}${pnl.toFixed(0)}
+                    </span>
+                    <span>{bets} bets</span>
+                    <span>{wr}% WR</span>
+                  </>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PolymarketTrades() {
+  const { data: balance } = useSWR("/polymarket/balance", localFetcher, { refreshInterval: 10000 });
+  const { data: trades } = useSWR("/polymarket/trades", localFetcher, { refreshInterval: 10000 });
+  const [show, setShow] = useState(false);
+
+  if (!balance || balance.error) return null;
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
+          Polymarket Account (real)
+        </h2>
+        <button onClick={() => setShow(!show)}
+          className="text-xs text-zinc-500 hover:text-zinc-300">
+          {show ? "Hide trades" : "Show trades"}
+        </button>
+      </div>
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+        <div className="grid grid-cols-4 gap-4 text-center">
+          <div>
+            <div className="text-lg font-bold text-zinc-200">{balance.totalTrades}</div>
+            <div className="text-[10px] text-zinc-500">Trades</div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-yellow-400">${balance.totalSpent?.toFixed(2)}</div>
+            <div className="text-[10px] text-zinc-500">Total Spent</div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-zinc-200">{balance.totalShares?.toFixed(1)}</div>
+            <div className="text-[10px] text-zinc-500">Total Shares</div>
+          </div>
+          <div>
+            <div className="text-[10px] text-zinc-500 font-mono">{balance.wallet?.slice(0, 10)}...</div>
+            <div className="text-[10px] text-zinc-500">Wallet</div>
+          </div>
+        </div>
+        {balance.byOutcome && (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {Object.entries(balance.byOutcome as Record<string, Record<string, number>>).map(([outcome, data]) => (
+              <div key={outcome} className={`rounded-lg p-2 ${
+                outcome === "Up" ? "bg-emerald-950/30" : "bg-red-950/30"
+              }`}>
+                <span className={`text-xs font-bold ${
+                  outcome === "Up" ? "text-emerald-400" : "text-red-400"
+                }`}>{outcome}</span>
+                <span className="text-xs text-zinc-500 ml-2">
+                  {data.count} trades | ${data.spent?.toFixed(2)} | {data.shares?.toFixed(1)} shares
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {show && Array.isArray(trades) && (
+          <div className="mt-3 space-y-1">
+            {trades.map((t: Record<string, unknown>, i: number) => (
+              <div key={i} className="flex items-center gap-3 text-xs text-zinc-400 border-t border-zinc-800 py-1">
+                <span className={`font-bold ${t.outcome === "Up" ? "text-emerald-400" : "text-red-400"}`}>
+                  {String(t.outcome)}
+                </span>
+                <span>{Number(t.size).toFixed(1)} shares</span>
+                <span>@ {Number(t.price).toFixed(2)}</span>
+                <span className="text-zinc-600">{String(t.status)}</span>
+                <span className="text-zinc-600 font-mono ml-auto">{String(t.orderId || "").slice(0, 16)}...</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Old StrategiesPanel kept for reference but unused
+function _StrategiesPanel({
   strategies,
   onSave,
 }: {

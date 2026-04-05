@@ -17,9 +17,10 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#ef4444"];
 
 export default function StrategiesPage() {
-  const { data: strategies = [] } = useSWR<Strategy[]>(
+  const { data: rawStrats } = useSWR(
     "/api/btc-lab/strategies", fetcher, { refreshInterval: 5000 }
   );
+  const strategies: Strategy[] = Array.isArray(rawStrats) ? rawStrats : [];
   const [editing, setEditing] = useState<Strategy | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Strategy | null>(null);

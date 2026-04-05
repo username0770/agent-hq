@@ -5,14 +5,17 @@ import useSWR, { mutate } from "swr";
 import type { SessionMeta, Session } from "@/lib/btc-lab-types";
 import BetCard from "./BetCard";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const LOCAL = "http://localhost:8765";
+const localFetcher = (p: string) => fetch(`${LOCAL}${p}`).then(r => r.json()).catch(() => null);
 
 function SessionCard({ meta }: { meta: SessionMeta }) {
   const [open, setOpen] = useState(false);
-  const { data: full } = useSWR<Session>(
-    open ? `/api/btc-lab/sessions/${meta.id}` : null,
-    fetcher
+  // Load bets for this session from local API
+  const { data: sessionBets } = useSWR(
+    open ? `/sessions/${meta.id}/bets` : null,
+    localFetcher
   );
+  const bets = Array.isArray(sessionBets) ? sessionBets : [];
 
   const outcomeColor =
     meta.resolvedOutcome === "UP"
@@ -62,31 +65,18 @@ function SessionCard({ meta }: { meta: SessionMeta }) {
         )}
       </button>
 
-      {open && full && (
-        <div className="border-t border-zinc-800 p-3 space-y-3">
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div>
-              <span className="text-zinc-500">Ticks: </span>
-              <span className="text-zinc-300">{full.ticks?.length || 0}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500">Bets: </span>
-              <span className="text-zinc-300">{full.bets?.length || 0}</span>
-            </div>
-            <div>
-              <span className="text-zinc-500">Outcome: </span>
-              <span className={outcomeColor}>
-                {meta.resolvedOutcome || "pending"}
-              </span>
-            </div>
-          </div>
-
-          {full.bets && full.bets.length > 0 && (
+      {open && (
+        <div className="border-t border-zinc-800 p-3 space-y-2">
+          {bets.length > 0 ? (
             <div className="space-y-1">
-              {full.bets.map((bet) => (
-                <BetCard key={bet.id} bet={bet} sessionId={meta.id} onUpdate={() => mutate(`/api/btc-lab/sessions/${meta.id}`)} />
+              {bets.map((bet: Record<string, unknown>) => (
+                <BetCard key={String(bet.id)} bet={bet as never}
+                  sessionId={meta.id}
+                  onUpdate={() => mutate(`/sessions/${meta.id}/bets`)} />
               ))}
             </div>
+          ) : (
+            <p className="text-xs text-zinc-600">No bets in this session</p>
           )}
         </div>
       )}

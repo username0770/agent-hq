@@ -1,9 +1,10 @@
 "use client";
 
-import type { PaperBet } from "@/lib/btc-lab-types";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Bet = Record<string, any>;
 
 interface BetCardProps {
-  bet: PaperBet;
+  bet: Bet;
   sessionId?: string;
   onUpdate?: () => void;
 }
@@ -51,7 +52,12 @@ export default function BetCard({ bet, sessionId, onUpdate }: BetCardProps) {
             {bet.side}
           </span>
           <span className="text-zinc-300">
-            ${bet.amount} @ {(bet.price * 100).toFixed(0)}c
+            {(() => {
+              const usdc = Number(bet.amount ?? bet.amountUSDC ?? 0);
+              const p = Number(bet.price ?? bet.intendedPrice ?? 0);
+              const sh = Number(bet.sharesReceived ?? 0);
+              return `$${usdc.toFixed(2)} @ ${(p * 100).toFixed(0)}c${sh > 0 ? ` (${sh.toFixed(1)} sh)` : ""}`;
+            })()}
           </span>
           <span className={`text-[9px] px-1 py-0.5 rounded ${
             bet.targetSource === "manual"
@@ -72,45 +78,43 @@ export default function BetCard({ bet, sessionId, onUpdate }: BetCardProps) {
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-zinc-500">
-        <span>Edge: {(bet.edge * 100).toFixed(1)}%</span>
-        <span>Fair: {(bet.fairProbability * 100).toFixed(0)}%</span>
-        <span>Fee: ${bet.fee.toFixed(2)}</span>
-        <span>Timer: {bet.timerAtBet || `${bet.secondsLeftAtBet}s`}</span>
+        <span>Edge: {((bet.edge ?? 0) * 100).toFixed(1)}%</span>
+        <span>Fair: {((bet.fairProbability ?? 0.5) * 100).toFixed(0)}%</span>
+        <span>Fee: ${(bet.fee ?? bet.feeCalculated ?? 0).toFixed(2)}</span>
+        <span>Timer: {bet.timerAtBet || (bet.secondsLeftAtBet != null ? `${Math.floor(bet.secondsLeftAtBet/60)}:${String(bet.secondsLeftAtBet%60).padStart(2,"0")}` : "-")}</span>
       </div>
 
-      {bet.pnl !== null && (
+      {(bet.pnl != null || bet.netPnl != null || bet.net_pnl != null) && (() => {
+        const p = Number(bet.pnl ?? bet.netPnl ?? bet.net_pnl ?? 0);
+        return (
         <div className="mt-1 text-xs font-bold">
-          <span className={bet.pnl >= 0 ? "text-emerald-400" : "text-red-400"}>
-            P&L: {bet.pnl >= 0 ? "+" : ""}${bet.pnl.toFixed(2)}
+          <span className={p >= 0 ? "text-emerald-400" : "text-red-400"}>
+            P&L: {p >= 0 ? "+" : ""}${p.toFixed(2)}
           </span>
         </div>
-      )}
+      ); })()}
 
-      {/* Actions */}
-      {sessionId && (
+      {/* Actions — only for PENDING */}
+      {sessionId && bet.outcome === "PENDING" && (
         <div className="mt-2 flex gap-1.5">
-          {bet.outcome === "PENDING" && (
-            <>
-              <button
-                onClick={() => handleSettle("UP")}
-                className="rounded border border-emerald-800/50 px-2 py-0.5 text-[10px] text-emerald-400 hover:bg-emerald-900/30"
-              >
-                Settle UP
-              </button>
-              <button
-                onClick={() => handleSettle("DOWN")}
-                className="rounded border border-red-800/50 px-2 py-0.5 text-[10px] text-red-400 hover:bg-red-900/30"
-              >
-                Settle DOWN
-              </button>
-            </>
-          )}
-          <button
-            onClick={handleDelete}
-            className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-500 hover:text-red-400 hover:border-red-800/50 ml-auto"
-          >
+          <button onClick={() => handleSettle("UP")}
+            className="rounded border border-emerald-800/50 px-2 py-0.5 text-[10px] text-emerald-400 hover:bg-emerald-900/30">
+            Settle UP
+          </button>
+          <button onClick={() => handleSettle("DOWN")}
+            className="rounded border border-red-800/50 px-2 py-0.5 text-[10px] text-red-400 hover:bg-red-900/30">
+            Settle DOWN
+          </button>
+          <button onClick={handleDelete}
+            className="rounded border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-500 hover:text-red-400 ml-auto">
             Delete
           </button>
+        </div>
+      )}
+      {/* Settled info */}
+      {bet.outcome && bet.outcome !== "PENDING" && (
+        <div className="mt-1 text-[10px] text-zinc-600">
+          Settled {bet.resolvedAt ? new Date(bet.resolvedAt).toLocaleString() : ""}
         </div>
       )}
     </div>

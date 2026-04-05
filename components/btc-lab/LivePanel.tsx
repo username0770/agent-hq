@@ -63,12 +63,56 @@ interface LivePanelProps {
 export default function LivePanel({ session, manualTarget, onSetManualTarget, onBetUpdate }: LivePanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [liveCoinbase, setLiveCoinbase] = useState<number | null>(null);
 
   // Tick every second for real-time recalculation
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(iv);
   }, []);
+
+  // Live Coinbase price — every 2s
+  useEffect(() => {
+    let active = true;
+    async function poll() {
+      try {
+        const r = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+        if (r.ok && active) {
+          const d = await r.json();
+          const p = parseFloat(d?.data?.amount);
+          if (p > 0) setLiveCoinbase(p);
+        }
+      } catch {}
+      if (active) setTimeout(poll, 2000);
+    }
+    poll();
+    return () => { active = false; };
+  }, []);
+
+  // Direct Polymarket CLOB price — every 2s from browser
+  useEffect(() => {
+    if (!session) return;
+    const s = session as unknown as Record<string, unknown>;
+    const tokenId = s.upTokenId || s.up_token_id || s.upTokenID;
+    if (!tokenId) return;
+    let active = true;
+    async function poll() {
+      try {
+        const r = await fetch(
+          `https://clob.polymarket.com/price?token_id=${tokenId}&side=buy`
+        );
+        if (r.ok && active) {
+          const d = await r.json();
+          const p = parseFloat(d.price);
+          if (p > 0) setLivePrice(p);
+        }
+      } catch {}
+      if (active) setTimeout(poll, 2000);
+    }
+    poll();
+    return () => { active = false; };
+  }, [session]);
 
   if (!session) {
     return (
@@ -85,15 +129,16 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
   const move = lastTick && effectiveTarget ? (lastTick.cexMedian || lastTick.binance || 0) - effectiveTarget : null;
   const movePct = move && effectiveTarget ? (move / effectiveTarget) * 100 : null;
 
-  // Market prices
-  const upPrice = lastTick?.pmUpPrice || 0.5;
+  // Market prices — live from CLOB, fallback to tick data
+  const upPrice = livePrice || (lastTick?.pmUpPrice && lastTick.pmUpPrice !== 0.5 ? lastTick.pmUpPrice : lastTick?.pmAsk) || 0.5;
   const downPrice = 1 - upPrice;
 
   // Calculate secondsLeft from endDate in real-time (not from stale tick)
   const secondsLeft = Math.max(0, Math.floor((new Date(session.endDate).getTime() - now) / 1000));
 
   // Fair value — recalculated every second
-  const ref = lastTick?.chainlink || lastTick?.cexMedian || lastTick?.binance || 0;
+  // Use live Coinbase (fastest), fallback to tick data
+  const ref = liveCoinbase || lastTick?.coinbase || lastTick?.chainlink || lastTick?.cexMedian || 0;
   const fv = effectiveTarget && ref ? fairProbability(ref, effectiveTarget, secondsLeft) : null;
 
   // Fees
@@ -190,8 +235,8 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
           {/* Price cards */}
           {lastTick && (
             <div className="grid grid-cols-2 gap-2">
+              <PriceCard label="Coinbase" value={liveCoinbase || lastTick.coinbase} />
               <PriceCard label="CEX Median" value={lastTick.cexMedian} />
-              <PriceCard label="Binance" value={lastTick.binance} />
               <PriceCard label="Chainlink" value={lastTick.chainlink} />
               <div className="rounded-lg bg-zinc-950 p-2">
                 <div className="text-[10px] text-zinc-500">PM UP Price</div>
@@ -220,6 +265,22 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
               )}
             </div>
           )}
+          {/* Straddle */}
+          {upPrice > 0.01 && downPrice > 0.01 && (() => {
+            const straddleCost = upPrice + downPrice;
+            const isArb = straddleCost < 0.99;
+            return (
+              <div className={`rounded-lg p-2 text-xs ${
+                isArb ? "bg-yellow-950/30 border border-yellow-800/30" : "bg-zinc-950"
+              }`}>
+                <span className="text-zinc-500">Straddle: </span>
+                <span className="font-mono">
+                  UP {(upPrice*100).toFixed(0)}c + DOWN {(downPrice*100).toFixed(0)}c = ${straddleCost.toFixed(2)}
+                </span>
+                {isArb && <span className="text-yellow-400 ml-1 font-bold"> ARB!</span>}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Right: UP vs DOWN model comparison */}
@@ -302,7 +363,7 @@ export default function LivePanel({ session, manualTarget, onSetManualTarget, on
       {session.bets.length > 0 && (
         <div className="mt-4">
           <h4 className="mb-2 text-xs font-semibold text-zinc-500 uppercase">
-            Paper Bets ({session.bets.length})
+            Bets ({session.bets.length})
           </h4>
           <div className="space-y-2">
             {session.bets.map((bet) => (

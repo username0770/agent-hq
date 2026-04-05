@@ -19,8 +19,8 @@ export function getRedis(): Redis {
 }
 
 /**
- * Check auth: Bearer token (Python script) OR NextAuth session (browser).
- * Returns null if authorized, or a 401 Response.
+ * Check auth: Bearer token OR NextAuth session cookie.
+ * Works without Redis.
  */
 export async function checkAuth(
   req: NextRequest
@@ -30,7 +30,7 @@ export async function checkAuth(
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     if (token === process.env.ADMIN_PASSWORD) {
-      return null; // authorized
+      return null;
     }
   }
 
@@ -39,10 +39,11 @@ export async function checkAuth(
     const { auth } = await import("@/lib/auth");
     const session = await auth();
     if (session?.user) {
-      return null; // authorized
+      return null;
     }
   } catch {
-    // auth() may fail in some contexts, fall through to 401
+    // In dev without full auth, allow if ADMIN_PASSWORD not set
+    if (!process.env.ADMIN_PASSWORD) return null;
   }
 
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
