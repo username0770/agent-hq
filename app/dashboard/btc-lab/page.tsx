@@ -4,6 +4,7 @@ import { useState } from "react";
 import useSWR, { mutate, useSWRConfig } from "swr";
 import dynamic from "next/dynamic";
 import type { SessionMeta, Session } from "@/lib/btc-lab-types";
+import MMControlPanel, { AutoBetsToggle, MMToggle, MMStatusBadge } from "@/components/btc-lab/MMPanel";
 
 interface StrategyStats {
   id: string; name: string; bets: number; wins: number;
@@ -188,9 +189,11 @@ export default function BtcLabPage() {
           })()}
           {/* Control buttons */}
           <div className="flex gap-2 ml-2">
+            <AutoBetsToggle />
+            <MMToggle />
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className={`rounded-lg border px-3 py-2 text-sm ${
+              className={`rounded-lg border px-3 py-1.5 text-xs ${
                 showSettings
                   ? "border-yellow-600 text-yellow-400 bg-yellow-900/20"
                   : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
@@ -252,6 +255,7 @@ export default function BtcLabPage() {
                 PAPER
               </span>
             )}
+            <MMStatusBadge />
             {localManualTarget != null && (
               <span className="text-yellow-400">
                 Target: ${Number(localManualTarget).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -330,8 +334,13 @@ export default function BtcLabPage() {
         );
       })()}
 
-      {/* Inline Strategies */}
-      {showSettings && <InlineStrategies />}
+      {/* Inline Strategies + MM Panel */}
+      {showSettings && (
+        <>
+          <InlineStrategies />
+          <MMControlPanel />
+        </>
+      )}
 
       {/* LIVE Panel */}
       <section>
